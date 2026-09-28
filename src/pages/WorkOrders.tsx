@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '../lib/api';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, UserPlus, CheckCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const workOrderSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -18,6 +19,7 @@ type WorkOrderForm = z.infer<typeof workOrderSchema>;
 export function WorkOrders() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const { user } = useAuth();
 
   // Fetch Work Orders
   const { data: workOrdersData, isLoading: isLoadingWO } = useQuery({
@@ -49,12 +51,43 @@ export function WorkOrders() {
     }
   });
 
+  const assignMutation = useMutation({
+    mutationFn: async (id: number) => {
+      // Assuming we assign to the currently logged in user
+      const res = await api.post(`/work-orders/${id}/assign`, { technician_id: user?.id });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+    }
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async ({ id, note }: { id: number, note: string }) => {
+      if (note) {
+        await api.post(`/work-orders/${id}/notes`, { content: note });
+      }
+      const res = await api.post(`/work-orders/${id}/complete`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+    }
+  });
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<WorkOrderForm>({
     resolver: zodResolver(workOrderSchema),
   });
 
   const onSubmit = (data: WorkOrderForm) => {
     createMutation.mutate(data);
+  };
+
+  const handleComplete = (id: number) => {
+    const note = window.prompt('Add a completion note (optional):');
+    if (note !== null) {
+      completeMutation.mutate({ id, note });
+    }
   };
 
   return (
@@ -149,16 +182,17 @@ export function WorkOrders() {
                 <th className="px-6 py-3 font-semibold">Priority</th>
                 <th className="px-6 py-3 font-semibold">Status</th>
                 <th className="px-6 py-3 font-semibold">Assigned To</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoadingWO ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">Loading work orders...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">Loading work orders...</td>
                 </tr>
               ) : workOrdersData?.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">No work orders found. Click 'Create Work Order' to start.</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">No work orders found. Click 'Create Work Order' to start.</td>
                 </tr>
               ) : (
                 workOrdersData?.map((wo: any) => (
@@ -188,6 +222,32 @@ export function WorkOrders() {
                     </td>
                     <td className="px-6 py-4 text-slate-600">
                       {wo.assigned_to_id ? `Tech #${wo.assigned_to_id}` : 'Unassigned'}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        {wo.status === 'open' && (
+                          <button 
+                            onClick={() => assignMutation.mutate(wo.id)}
+                            disabled={assignMutation.isPending}
+                            className="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded transition-colors"
+                            title="Assign to me"
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Assign
+                          </button>
+                        )}
+                        {wo.status === 'in_progress' && (
+                          <button 
+                            onClick={() => handleComplete(wo.id)}
+                            disabled={completeMutation.isPending}
+                            className="inline-flex items-center text-xs font-medium text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-2.5 py-1.5 rounded transition-colors"
+                            title="Complete work order"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Complete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

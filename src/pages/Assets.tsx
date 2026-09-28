@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '../lib/api';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, History } from 'lucide-react';
 
 const assetSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -21,6 +21,7 @@ type AssetForm = z.infer<typeof assetSchema>;
 export function Assets() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [selectedAssetForHistory, setSelectedAssetForHistory] = useState<number | null>(null);
 
   const { data: assetsData, isLoading } = useQuery({
     queryKey: ['assets'],
@@ -28,6 +29,16 @@ export function Assets() {
       const res = await api.get('/assets');
       return res.data.items || [];
     }
+  });
+
+  const { data: historyData, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['asset-history', selectedAssetForHistory],
+    queryFn: async () => {
+      if (!selectedAssetForHistory) return [];
+      const res = await api.get(`/assets/${selectedAssetForHistory}/history`);
+      return res.data || [];
+    },
+    enabled: !!selectedAssetForHistory
   });
 
   const createMutation = useMutation({
@@ -51,7 +62,7 @@ export function Assets() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 relative">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-900">Equipment Assets</h1>
         {!showForm && (
@@ -143,16 +154,17 @@ export function Assets() {
                 <th className="px-6 py-3 font-semibold">Location</th>
                 <th className="px-6 py-3 font-semibold">Model/Serial</th>
                 <th className="px-6 py-3 font-semibold">Status</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Loading assets...</td>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">Loading assets...</td>
                 </tr>
               ) : assetsData?.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No assets found. Click 'Add Asset' to create one.</td>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">No assets found. Click 'Add Asset' to create one.</td>
                 </tr>
               ) : (
                 assetsData?.map((asset: any) => (
@@ -173,6 +185,16 @@ export function Assets() {
                         {asset.status.replace('_', ' ')}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => setSelectedAssetForHistory(asset.id)}
+                        className="inline-flex items-center text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded transition-colors"
+                        title="View Maintenance History"
+                      >
+                        <History className="w-4 h-4 mr-1" />
+                        History
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -180,6 +202,56 @@ export function Assets() {
           </table>
         </div>
       </div>
+
+      {/* History Modal */}
+      {selectedAssetForHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">Maintenance History</h2>
+              <button 
+                onClick={() => setSelectedAssetForHistory(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              {isLoadingHistory ? (
+                <div className="text-center text-slate-500 py-8">Loading history...</div>
+              ) : historyData?.length === 0 ? (
+                <div className="text-center text-slate-500 py-8 italic">No maintenance history recorded for this asset.</div>
+              ) : (
+                <div className="space-y-6">
+                  {historyData?.map((item: any) => (
+                    <div key={item.id} className="relative pl-6 border-l-2 border-slate-200 last:border-0 pb-6 last:pb-0">
+                      <div className="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1.5 ring-4 ring-white" />
+                      <div className="mb-1 flex justify-between items-start">
+                        <h3 className="font-bold text-slate-900">{item.title}</h3>
+                        <span className="text-xs text-slate-500">{new Date(item.completed_at || item.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm text-slate-600 mb-3">{item.description}</p>
+                      
+                      {item.notes && item.notes.length > 0 && (
+                        <div className="bg-slate-50 rounded-lg p-3 space-y-3">
+                          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Service Notes</h4>
+                          {item.notes.map((note: any) => (
+                            <div key={note.id} className="text-sm">
+                              <p className="text-slate-700">{note.content}</p>
+                              <p className="text-xs text-slate-400 mt-1">Tech #{note.author_id} • {new Date(note.created_at).toLocaleString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
