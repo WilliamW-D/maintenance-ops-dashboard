@@ -10,8 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 const workOrderSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  asset_id: z.coerce.number().min(1, 'Asset selection is required'),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  asset_id: z.string().min(1, 'Asset selection is required'),
+  priority: z.enum(['low', 'medium', 'high', 'critical']),
 });
 
 type WorkOrderForm = z.infer<typeof workOrderSchema>;
@@ -41,7 +41,8 @@ export function WorkOrders() {
 
   const createMutation = useMutation({
     mutationFn: async (data: WorkOrderForm) => {
-      const res = await api.post('/work-orders', data);
+      const payload = { ...data, asset_id: parseInt(data.asset_id, 10) };
+      const res = await api.post('/work-orders', payload);
       return res.data;
     },
     onSuccess: () => {
@@ -77,6 +78,7 @@ export function WorkOrders() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<WorkOrderForm>({
     resolver: zodResolver(workOrderSchema),
+    defaultValues: { priority: 'medium' },
   });
 
   const onSubmit = (data: WorkOrderForm) => {

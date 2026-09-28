@@ -13,7 +13,7 @@ const assetSchema = z.object({
   model: z.string().optional(),
   serial_number: z.string().optional(),
   location: z.string().min(1, 'Location is required'),
-  status: z.enum(['active', 'out_of_service', 'retired']).default('active'),
+  status: z.enum(['active', 'out_of_service', 'retired']),
 });
 
 type AssetForm = z.infer<typeof assetSchema>;
@@ -55,6 +55,7 @@ export function Assets() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AssetForm>({
     resolver: zodResolver(assetSchema),
+    defaultValues: { status: 'active' },
   });
 
   const onSubmit = (data: AssetForm) => {
