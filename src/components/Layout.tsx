@@ -1,10 +1,12 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Wrench, Package, LayoutDashboard, LogOut, Menu } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -55,7 +57,10 @@ export function Layout() {
         </nav>
 
         <div className="p-4 border-t border-slate-800 shrink-0">
-          <button className="flex items-center w-full px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+          <button 
+            onClick={logout}
+            className="flex items-center w-full px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          >
             <LogOut className="w-5 h-5 mr-3 shrink-0" />
             Sign out
           </button>
@@ -73,7 +78,7 @@ export function Layout() {
           </button>
           
           <div className="ml-auto flex items-center">
-            <span className="text-sm font-medium text-gray-700">William ▾</span>
+            <span className="text-sm font-medium text-gray-700">{user?.full_name || 'User'} ▾</span>
           </div>
         </header>
 
